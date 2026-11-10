@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0e16">
+<title>Geocentric Model</title>
+<meta name="description" content="An interactive 3D model that tests the flat-earth dome against the real sky: sunsets, star trails, eclipses and seasons, computed with real astronomy.">
+<meta property="og:title" content="Geocentric Model">
+<meta property="og:description" content="Test the flat-earth dome against the real sky, in your browser.">
+<meta property="og:type" content="website">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <h1 class="brand"><span class="brand-mark" aria-hidden="true"></span>Geocentric Model</h1>
+    <div class="top-actions">
+      <button type="button" class="tb-btn tb-demos" data-open-tab="demos">Demos</button>
+      <button type="button" class="tb-btn" id="panel-toggle" aria-controls="panel" aria-expanded="false" aria-label="Show controls">
+        <span class="hamb" aria-hidden="true"></span><span class="tb-label">Controls</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage mode-model" id="stage" aria-label="Interactive view">
+    <canvas id="view" tabindex="0" aria-label="3D view. Drag to orbit, two fingers or scroll to zoom."></canvas>
+    <canvas id="eye" class="eye" tabindex="0" aria-label="Observer's view"></canvas>
+    <div class="gl-error" id="gl-error" hidden></div>
+
+    <div class="hud hud-tl hud-box" data-hud="phase"><canvas width="120" height="120" aria-hidden="true"></canvas><span data-hud="illum"></span></div>
+    <div class="hud hud-tr">
+      <div class="hud-box"><div data-hud="date"></div><div class="season" data-hud="season" hidden></div></div>
+      <div class="hud-box" data-hud="azel"><dl><dt>Sun</dt><dd data-hud="sun"></dd><dt>Moon</dt><dd data-hud="moon"></dd></dl></div>
+    </div>
+
+    <div class="vp-top">
+      <div class="vp-mode" role="group" aria-label="View">
+        <button type="button" data-mode="0" aria-pressed="true" title="The flat earth under its dome (V)">Dome</button>
+        <button type="button" data-mode="2" aria-pressed="false" title="The same moment on a globe (V)">Globe</button>
+        <button type="button" data-mode="1" aria-pressed="false" title="What a person at the observer's spot sees (V)">Sky view</button>
+      </div>
+      <div class="eye-heading only-eye" id="eye-heading" aria-live="polite"></div>
+    </div>
+    <div class="vp-hint" id="vp-hint" aria-live="polite"></div>
+
+    <button type="button" class="edge edge-left only-eye" id="eye-left" data-vp="turn-left"><span aria-hidden="true">&#8249;</span><span class="dir">E</span></button>
+    <button type="button" class="edge edge-right only-eye" id="eye-right" data-vp="turn-right"><span class="dir">W</span><span aria-hidden="true">&#8250;</span></button>
+    <div class="eye-tip" id="eye-tip" hidden></div>
+
+    <div class="pip only-model" id="pip">
+      <button type="button" class="pip-open" aria-label="Open the observer's sky view" title="Drag or scroll to look around · tap to open"><canvas aria-hidden="true"></canvas><span class="pip-label" id="pip-label">Sky view</span></button>
+      <button type="button" class="pip-close" aria-label="Hide the sky view inset">&times;</button>
+    </div>
+
+    <div class="vp-cluster" role="group" aria-label="Camera">
+      <button type="button" data-vp="zoom-in" aria-label="Zoom in" title="Zoom in">+</button>
+      <button type="button" data-vp="zoom-out" aria-label="Zoom out" title="Zoom out">&minus;</button>
+      <button type="button" class="only-dome" data-vp="view-top" title="Look straight down">Top</button>
+      <button type="button" class="only-dome" data-vp="view-side" title="Low view from the side">Side</button>
+      <button type="button" class="only-model" data-vp="view-obs" title="Close-up on the observer">Me</button>
+      <button type="button" class="only-eye" data-vp="face-sun" title="Turn toward the Sun">Sun</button>
+      <button type="button" class="only-eye" data-vp="face-moon" title="Turn toward the Moon">Moon</button>
+      <button type="button" class="only-eye" data-vp="level" title="Level the view">Level</button>
+    </div>
+
+    <div class="caption" data-hud="caption" hidden></div>
+    <div class="card" data-hud="card" hidden><div class="card-panel"><button type="button" class="card-toggle" aria-expanded="true" aria-label="Hide the details">Hide</button><p class="card-kicker"></p><h3></h3><ul></ul></div></div>
+    <svg class="pointer" data-hud="pointer" hidden aria-hidden="true">
+      <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrow-fill"></path></marker></defs>
+      <line></line><rect rx="5"></rect><text></text>
+    </svg>
+
+    <!-- bottom bar: time controls, or the demo player while a demo runs -->
+    <div class="vp-bar" id="vp-bar">
+      <div class="demo-bar" id="demo-bar" hidden>
+        <button type="button" id="btn-exit" class="db-exit" aria-label="Leave the demo">&times;</button>
+        <button type="button" id="btn-prev" aria-label="Previous step">&#9664;&#9664;</button>
+        <button type="button" id="btn-play" class="vp-play" aria-label="Pause">&#10074;&#10074;</button>
+        <button type="button" id="btn-next" aria-label="Next step">&#9654;&#9654;</button>
+        <div class="db-info"><span class="db-name" id="db-name"></span><span class="db-step" id="db-step"></span></div>
+        <select id="speed" aria-label="Demo speed"><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="1.5">1.5&times;</option><option value="2">2&times;</option></select>
+      </div>
+      <div class="vp-row time-row" id="time-row">
+        <button type="button" id="vp-lapse" class="vp-play" aria-label="Play time-lapse">&#9654;</button>
+        <select id="vp-rate" aria-label="Time-lapse speed">
+          <option value="0.0166667">1 min/s</option><option value="0.1666667" selected>10 min/s</option>
+          <option value="1">1 h/s</option><option value="6">6 h/s</option><option value="24">1 day/s</option>
+        </select>
+        <button type="button" class="vp-step" data-step="-1" aria-label="Back one hour">&minus;1h</button>
+        <input type="range" id="vp-time" class="vp-time" min="0" max="24" step="0.05" aria-label="Time of day, UTC">
+        <button type="button" class="vp-step" data-step="1" aria-label="Forward one hour">+1h</button>
+        <output id="vp-time-out" for="vp-time">12:00 UTC</output>
+        <input type="date" id="vp-date" min="2025-01-01" max="2030-12-31" aria-label="Date">
+        <button type="button" id="vp-now">Now</button>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel" aria-label="Controls and information">
+    <div class="sheet-head">
+      <button type="button" class="sheet-grab" id="sheet-grab" aria-label="Resize or close the panel"><span aria-hidden="true"></span></button>
+      <div class="tabs" role="tablist" aria-label="Panel">
+        <button type="button" role="tab" id="t-controls" aria-controls="tab-controls" aria-selected="true" data-tab="controls">Controls</button>
+        <button type="button" role="tab" id="t-sky" aria-controls="tab-sky" aria-selected="false" data-tab="sky">Sky</button>
+        <button type="button" role="tab" id="t-demos" aria-controls="tab-demos" aria-selected="false" data-tab="demos">Demos</button>
+        <button type="button" role="tab" id="t-about" aria-controls="tab-about" aria-selected="false" data-tab="about">About</button>
+      </div>
+      <button type="button" class="sheet-close" id="sheet-close" aria-label="Close the panel">&times;</button>
+    </div>
+
+    <div class="sheet-body">
+      <section class="tabpanel" id="tab-controls" role="tabpanel" aria-labelledby="t-controls">
+        <div class="group">
+          <h2>Where and when</h2>
+          <label class="field" for="place">Observer place
+            <select id="place"><option value="">Choose a place&hellip;</option></select>
+          </label>
+          <div class="row"><button type="button" id="btn-here">Use my location</button><button type="button" id="btn-now">Set to now</button></div>
+          <p class="note" id="here-note" aria-live="polite">Your location is only used on this device and is never sent anywhere.</p>
+          <div data-group="time"></div>
+          <div data-group="place"></div>
+        </div>
+        <div class="group">
+          <h2>Show</h2>
+          <div class="checks" data-group="show"></div>
+        </div>
+        <div class="group">
+          <h2>Dome and light rays</h2>
+          <div data-group="dome"></div>
+          <fieldset><legend>Rays go to</legend>
+            <label class="radio"><input type="radio" name="target" data-key="RayTarget" value="0"> the observer</label>
+            <label class="radio"><input type="radio" name="target" data-key="RayTarget" value="1"> the whole map</label>
+          </fieldset>
+          <fieldset><legend>Rays come from</legend>
+            <label class="radio"><input type="radio" name="source" data-key="RaySource" value="0"> Sun</label>
+            <label class="radio"><input type="radio" name="source" data-key="RaySource" value="1"> Moon</label>
+            <label class="radio"><input type="radio" name="source" data-key="RaySource" value="2"> a star</label>
+          </fieldset>
+        </div>
+        <div class="group">
+          <h2>Sun and Moon</h2>
+          <p class="note">On the dome, or circling below it at a fixed height. Many flat-earth descriptions give a Sun about 5,000&nbsp;km up and 51&nbsp;km wide. Moving a height slider takes that body off the dome.</p>
+          <div class="checks" data-group="sunchk"></div>
+          <div data-group="sun"></div>
+          <div class="checks" data-group="moonchk"></div>
+          <div data-group="moon"></div>
+        </div>
+        <div class="group">
+          <h2>Terrain</h2>
+          <p class="note">Land is raised just enough to show its shape; at true scale even Everest would be thinner than a line. Antarctica is raised much higher, as the ice wall.</p>
+          <div data-group="terrain"></div>
+        </div>
+        <div class="group">
+          <h2>Camera</h2>
+          <div data-group="camera"></div>
+        </div>
+        <div class="group">
+          <h2>Share</h2>
+          <p class="note">Share a link that opens exactly this view. Nothing is uploaded; the settings, including the observer&rsquo;s place, are inside the link.</p>
+          <div class="row"><button type="button" class="primary" id="btn-share">Share this view</button><button type="button" id="btn-reset">Reset everything</button></div>
+          <input type="text" id="share-url" class="share-url" readonly hidden aria-label="Link to this view">
+          <p class="note" id="share-note" aria-live="polite"></p>
+        </div>
+        <div class="group">
+          <h2>Screen recording</h2>
+          <p class="note">Hide every button and panel so a screen recording shows only the model. To record a demo from its first frame, use <b>Rec</b> next to it in Demos.</p>
+          <div class="checks rec-checks">
+            <label class="check"><input type="checkbox" id="rec-captions"> Keep demo captions</label>
+            <label class="check"><input type="checkbox" id="rec-info"> Keep date and Moon phase</label>
+          </div>
+          <div class="row"><button type="button" class="primary" id="btn-clean">Hide everything</button></div>
+          <p class="note">To bring the controls back: hold anywhere on the view for a second, or press Esc. H toggles it with a keyboard.</p>
+        </div>
+      </section>
+
+      <section class="tabpanel sky" id="tab-sky" role="tabpanel" aria-labelledby="t-sky" hidden>
+        <div class="sky-head"><h2>Sky overview</h2><p class="sky-info" data-sky="info"></p></div>
+        <figure class="sky-fig">
+          <canvas data-sky="all" aria-label="All-sky chart for the observer"></canvas>
+          <figcaption>The whole sky, looking straight up: north at the top, east on the left. The orange outline is what the sky view shows; tap or drag the chart to aim it.</figcaption>
+        </figure>
+        <dl class="facts" data-sky="facts"></dl>
+        <p class="legend"><span class="lg lg-eq"></span>Celestial equator <span class="lg lg-ecl"></span>Sun&rsquo;s yearly path <span class="lg lg-pole"></span>Celestial pole</p>
+        <div class="sky-tip" data-sky="tip" hidden></div>
+      </section>
+
+      <section class="tabpanel" id="tab-demos" role="tabpanel" aria-labelledby="t-demos" hidden>
+        <p class="note">Guided tours with captions. Tap one to play; use the bar at the bottom of the view to pause or skip. <b>Rec</b> plays it with every control hidden, for screen recording.</p>
+        <ul class="demo-list" id="demo-list"></ul>
+      </section>
+
+      <section class="tabpanel prose" id="tab-about" role="tabpanel" aria-labelledby="t-about" hidden>
+        <h2>What this is</h2>
+        <p>The flat-earth model puts the Sun, Moon and stars on a dome above a flat map. This site takes the real sky, computed with standard astronomy for a round Earth, and places every object on that dome. Then it asks what light would have to do so that people still see the sky they actually see.</p>
+        <p>Every part of the dome model can be adjusted: the dome&rsquo;s height, width and shape, and whether the Sun and Moon ride on the dome or circle below it at a height and size you choose. None of these settings brings the Sun below the horizon; try it.</p>
+        <p>The answer is drawn as curved light rays. On a globe the same rays are straight; switch to <b>Globe</b> to compare.</p>
+        <h2>How to use it</h2>
+        <ul>
+          <li><b>Dome</b> and <b>Globe</b>: drag to turn the camera, pinch or scroll to zoom.</li>
+          <li><b>Sky view</b>: what a person at the red-and-blue marker sees. Swipe or scroll sideways to turn east or west.</li>
+          <li>The bar at the bottom changes the time. Press play for a time-lapse.</li>
+        </ul>
+        <h2>Accuracy</h2>
+        <p>Terrain is an approximate model of the major mountain ranges, plateaus and ice sheets, placed and sized from standard atlases, with heights exaggerated (20&times; by default) only so their shape shows on a map 40,000&nbsp;km across. Antarctica alone is raised far higher: the ring around the rim shows the &ldquo;ice wall&rdquo; that flat-earth maps describe; its height is a setting, not a measurement. The real Antarctic coast is mostly ice cliffs tens of metres high, with an ice sheet up to 4&nbsp;km thick behind them.</p>
+        <p>Sun, Moon, planets and Earth's rotation come from standard low-precision formulas, accurate to a few arcminutes for 2025&ndash;2030. Stars: about 190 of the brightest, to about 0.1&deg;. The sky view includes atmospheric refraction. The curved rays are drawn shapes that join the two ends; the dome model itself offers no law of physics for them.</p>
+        <h2>Privacy</h2>
+        <p>No accounts, no cookies, no ads, no analytics. The site makes no requests to other servers. Your last view is remembered in this browser only. &ldquo;Use my location&rdquo; stays on your device unless you share a link, which includes the observer&rsquo;s position.</p>
+        <h2>Open source</h2>
+        <p>Free to use, study, change and share under the MIT license. <a id="source-link" href="#" rel="noopener noreferrer" target="_blank">Source code and how to contribute</a>.</p>
+        <h2>Credits</h2>
+        <p>Based on the Flat Earth Dome Model by Walter Bislin. Coastlines from Natural Earth (public domain). Star positions from standard bright-star tables.</p>
+        <p class="note" id="version-note"></p>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/lib/vec.js"></script>
+<script src="js/lib/astro.js"></script>
+<script src="js/lib/tween.js"></script>
+<script src="js/lib/landdata.js"></script>
+<script src="js/lib/maptex.js"></script>
+<script src="js/lib/reliefdata.js"></script>
+<script src="js/lib/relief.js"></script>
+<script src="js/lib/gl.js"></script>
+<script src="js/lib/stars.js"></script>
+<script src="js/lib/eclipse.js"></script>
+<script src="js/app/model.js"></script>
+<script src="js/app/scene.js"></script>
+<script src="js/app/hud.js"></script>
+<script src="js/app/sky.js"></script>
+<script src="js/app/eye.js"></script>
+<script src="js/app/demos.js"></script>
+<script src="js/app/viewport.js"></script>
+<script src="js/app/ui.js"></script>
+
+</body></html>
